@@ -139,6 +139,24 @@ python -m adb_capture.orchestrator --serial HT7790200123 --output-dir capture_de
 
 ---
 
+## Security & Best Practices
+
+When using ADB Capture, keep the following security considerations in mind:
+
+### 1. Wireless ADB Port Exposure (Port 5555)
+- **Risk**: Enabling Wireless ADB opens port `5555` on your Android device. This port exposes control over the device to anyone on the same local network (and does not prompt for authentication if the host was already authorized).
+- **Best Practice**:
+  - **Only use Wireless Capture on trusted networks** (e.g., your home or private office network). **Never** run wireless discovery or sync on public or untrusted WiFi networks (such as coffee shops or airports).
+  - **Close the port when finished**: Once you are done using the sync utility, you should disable wireless ADB. You can do this by either:
+    1. Running `adb usb` from your terminal (which resets the device's ADB mode back to USB-only and closes port `5555`).
+    2. Toggling "Wireless Debugging" off in developer options (if available on your Android version).
+    3. Restarting your phone, which automatically terminates the network-exposed debug port listener.
+
+### 2. Physical USB Connection
+- When connecting via USB, do not leave your phone unlocked and unattended in public places. Ensure you only check the "Always allow from this computer" option on workstations that you own and secure.
+
+---
+
 ## Troubleshooting
 
 - **"No device found" / Connection fails over USB**:

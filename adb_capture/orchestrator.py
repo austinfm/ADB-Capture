@@ -4,6 +4,7 @@ import time
 import subprocess
 import argparse
 import shutil
+import shlex
 
 IP_CACHE_FILE = os.path.join(os.path.expanduser("~"), ".adb_capture_device_ip")
 
@@ -84,7 +85,7 @@ def save_cached_ip(ip: str) -> None:
 def get_remote_file_size(adb_path: str, remote_file: str) -> int | None:
     """Retrieves the file size of the remote file in bytes using stat -c %s with ls -l fallback."""
     # Quote the path to support spaces and special characters in filenames
-    quoted_file = f'"{remote_file}"'
+    quoted_file = shlex.quote(remote_file)
     stdout, _, code = run_adb_cmd(adb_path, ["shell", "stat", "-c", "%s", quoted_file])
     if code == 0:
         try:
@@ -368,7 +369,7 @@ def main():
         print(f"[Orchestrator] Device IP: {ip} (saved to cache)")
 
     # Ensure Camera directory exists on device (quote the path to handle potential spaces)
-    run_adb_cmd(adb_path, ["shell", "mkdir", "-p", f'"{args.device_dir}"'])
+    run_adb_cmd(adb_path, ["shell", "mkdir", "-p", shlex.quote(args.device_dir)])
 
     # 3. Establish temporal marker
     print("[Orchestrator] Creating experiment marker on device...")
@@ -399,7 +400,7 @@ def main():
         while True:
             stdout, stderr, code = run_adb_cmd(
                 adb_path,
-                ["shell", "find", f'"{args.device_dir}"', "-type", "f", "-newer", "/sdcard/experiment_marker"],
+                ["shell", "find", shlex.quote(args.device_dir), "-type", "f", "-newer", "/sdcard/experiment_marker"],
             )
 
             if code != 0:
@@ -460,7 +461,7 @@ def main():
                                     del pending_files[remote_file]
                                     if args.delete_on_device:
                                         print(f"[Orchestrator] Removing from device: {remote_file}")
-                                        run_adb_cmd(adb_path, ["shell", "rm", f'"{remote_file}"'])
+                                        run_adb_cmd(adb_path, ["shell", "rm", shlex.quote(remote_file)])
                                 else:
                                     print(f"[Error] Failed to pull {remote_file}: {pull_err}")
                     else:
