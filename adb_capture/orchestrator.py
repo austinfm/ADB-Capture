@@ -7,6 +7,9 @@ import shutil
 
 IP_CACHE_FILE = os.path.join(os.path.expanduser("~"), ".adb_capture_device_ip")
 
+# Global target serial to support multi-device environments
+device_serial: str | None = None
+
 
 def find_adb() -> str:
     """Dynamically locates the ADB executable across different OS platforms."""
@@ -40,9 +43,15 @@ def find_adb() -> str:
     return "adb"
 
 
-def run_adb_cmd(adb_path: str, args: list, timeout: int = 10):
+def run_adb_cmd(adb_path: str, args: list, timeout: int = 10) -> tuple[str, str, int]:
     """Runs an ADB command and returns (stdout, stderr, returncode)."""
-    cmd = [adb_path] + args
+    global device_serial
+    cmd_args = args
+    # Prepend target serial option if set and the command targets a specific device
+    if device_serial and args and args[0] not in ("devices", "connect", "disconnect", "version", "start-server", "kill-server"):
+        cmd_args = ["-s", device_serial] + args
+
+    cmd = [adb_path] + cmd_args
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         return res.stdout, res.stderr, res.returncode
@@ -103,13 +112,19 @@ def get_file_type_label(filename: str) -> str:
 
 def discover_device_ip(adb_path: str) -> str | None:
     """Reads the WiFi IP from a USB-connected device via wlan0."""
+    global device_serial
     print("[Discovery] Checking for USB-connected device...")
     stdout, _, code = run_adb_cmd(adb_path, ["devices"])
     lines = [l.strip() for l in stdout.splitlines() if l.strip() and "List of" not in l]
-    usb_devices = [l for l in lines if "\tdevice" in l and not l.startswith("192.") and not l.startswith("10.")]
+    # Filter for USB devices by excluding devices that have colons (network addresses) in their names
+    usb_devices = [l.split()[0] for l in lines if "\tdevice" in l and ":" not in l.split()[0]]
     if code != 0 or not usb_devices:
         print("[Discovery] No USB device found. Connect the device via USB with USB debugging enabled.")
         return None
+
+    # Target the first USB device explicitly for all query commands
+    old_serial = device_serial
+    device_serial = usb_devices[0]
 
     # Try wlan0 inet address first
     stdout, _, code = run_adb_cmd(adb_path, ["shell", "ip", "addr", "show", "wlan0"])
@@ -133,6 +148,8 @@ def discover_device_ip(adb_path: str) -> str | None:
                     return ip
 
     print("[Discovery] Could not determine device IP. Is WiFi enabled on the device?")
+    # Restore serial if we couldn't find the IP
+    device_serial = old_serial
     return None
 
 
@@ -177,23 +194,38 @@ def resolve_ip(adb_path: str, args) -> str | None:
     return None
 
 
-def verify_connection(adb_path: str, ip: str | None = None):
+def verify_connection(adb_path: str, ip: str | None = None) -> tuple[bool, str]:
     """Verifies that the device is connected and responsive."""
+    global device_serial
     if ip:
+        target = f"{ip}:5555"
         for attempt in range(3):
             print(f"[Orchestrator] Connection attempt {attempt + 1} to {ip}...")
-            run_adb_cmd(adb_path, ["connect", f"{ip}:5555"])
+            run_adb_cmd(adb_path, ["connect", target])
             time.sleep(2)
+            
+            old_serial = device_serial
+            device_serial = target
             stdout, stderr, code = run_adb_cmd(adb_path, ["shell", "getprop", "ro.product.model"])
             if code == 0 and stdout.strip():
                 return True, stdout.strip()
+            device_serial = old_serial
             print(f"[Orchestrator] Attempt {attempt + 1} failed: {stderr.strip() or 'Device not responsive'}")
         return False, "Could not establish verified connection to WiFi device."
     else:
-        stdout, stderr, code = run_adb_cmd(adb_path, ["shell", "getprop", "ro.product.model"])
-        if code == 0 and stdout.strip():
-            return True, stdout.strip()
-        return False, stderr.strip() or "No device connected."
+        # USB-only mode: Find the connected device serial to target it explicitly
+        stdout, _, code = run_adb_cmd(adb_path, ["devices"])
+        if code == 0:
+            lines = [l.strip() for l in stdout.splitlines() if l.strip() and "List of" not in l]
+            devices = [l.split()[0] for l in lines if "\tdevice" in l]
+            if devices:
+                old_serial = device_serial
+                device_serial = devices[0]
+                stdout, stderr, code = run_adb_cmd(adb_path, ["shell", "getprop", "ro.product.model"])
+                if code == 0 and stdout.strip():
+                    return True, stdout.strip()
+                device_serial = old_serial
+        return False, "No device connected."
 
 
 def silent_reconnect(adb_path: str, ip: str | None = None) -> bool:
