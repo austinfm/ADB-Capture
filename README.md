@@ -70,11 +70,13 @@ Just run the wrapper script for your OS. It will check for a cached IP, launch c
 
 ### Option B: Advanced CLI Usage (Direct Python Execution)
 
-You can run `orchestrator.py` directly with specific command-line arguments to customize your capture flow:
+You can run the module directly with specific command-line arguments to customize your capture flow:
 
 ```bash
-python orchestrator.py [FLAGS]
+python -m adb_capture.orchestrator [FLAGS]
 ```
+
+*(Note: If you have installed the package via `pip install .`, you can use the global **`adb-capture`** command instead of `python -m adb_capture.orchestrator`)*
 
 #### Available Flags
 
@@ -94,13 +96,13 @@ python orchestrator.py [FLAGS]
 ### Auto-Delete Captured Files from Phone
 If you are doing high-volume capturing and don't want to fill your device's internal storage, enable auto-deletion:
 ```bash
-python orchestrator.py --delete-on-device
+python -m adb_capture.orchestrator --delete-on-device
 ```
 
 ### Run Custom Post-Processing
 Let's say you have a script called `process_images.py` that uploads or converts your files. You can configure the capture tool to trigger it automatically on exit:
 ```bash
-python orchestrator.py --post-process process_images.py
+python -m adb_capture.orchestrator --post-process process_images.py
 ```
 
 ---

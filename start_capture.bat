@@ -12,7 +12,7 @@ if exist .device_ip (
     echo   Starting capture...
     echo ===================================================
     echo.
-    python -u orchestrator.py
+    python -u -m adb_capture.orchestrator
     if %ERRORLEVEL% EQU 0 goto :done
 
     echo.
@@ -67,7 +67,7 @@ pause
 echo.
 echo Discovering device IP and switching to wireless...
 echo.
-python -u orchestrator.py --discover
+python -u -m adb_capture.orchestrator --discover
 if %ERRORLEVEL% EQU 0 goto :done
 
 :: ─── Discovery failed: troubleshooting tips ────────────────────────────────

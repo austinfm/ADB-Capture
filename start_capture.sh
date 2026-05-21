@@ -22,7 +22,7 @@ else
 fi
 
 run_capture() {
-    $PYTHON_CMD -u orchestrator.py "$@"
+    $PYTHON_CMD -u -m adb_capture.orchestrator "$@"
     return $?
 }
 
