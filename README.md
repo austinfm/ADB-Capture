@@ -86,7 +86,7 @@ python -m adb_capture.orchestrator [FLAGS]
 | `--discover` | Flag | Forces USB discovery to query the device's WiFi IP, configure wireless ADB, and write it to cache. |
 | `--poll-interval <SEC>` | Integer | Set how frequently (in seconds) the script checks for new files. Default: `3` seconds. |
 | `--delete-on-device` | Flag | Deletes source images/videos from the device after successfully pulling them to save phone storage. |
-| `--output-dir <PATH>` | String | Save pulled files to a local computer folder. If omitted, files are saved in a new timestamped folder (`capture_YYYYMMDD_HHMMSS/`). |
+| `--output-dir <PATH>` | String | Save pulled files to a local computer folder. If omitted, files are saved in a timestamped folder nested under `captures/` (e.g. `captures/capture_YYYYMMDD_HHMMSS/`). |
 | `--device-dir <PATH>` | String | Directory path on the Android device to monitor. Default: `/sdcard/DCIM/Camera`. |
 | `--type <TYPE>` | Choice | Restrict capture to specific media types. Options: `all` (default), `image`, `video`. |
 | `--dry-run` | Flag | Run in simulation mode: prints what would be pulled or deleted but makes no changes to the device or local filesystem. |

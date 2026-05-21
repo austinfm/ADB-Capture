@@ -7,6 +7,7 @@ __pycache__/
 .device_ip
 
 # Capture session output folders
+captures/
 capture_*/
 output_*/
 *.log

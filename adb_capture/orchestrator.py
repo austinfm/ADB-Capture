@@ -402,9 +402,10 @@ def main():
         print(f"[Orchestrator] Output directory: {output_path}/")
     else:
         run_id = time.strftime("capture_%Y%m%d_%H%M%S")
-        output_path = os.path.abspath(run_id)
+        # Save default sessions inside a 'captures' subfolder to prevent working directory clutter
+        output_path = os.path.abspath(os.path.join("captures", run_id))
         os.makedirs(output_path, exist_ok=True)
-        print(f"[Orchestrator] Session folder: {run_id}/")
+        print(f"[Orchestrator] Session folder: captures/{run_id}/")
 
     processed_frames: set = set()
     pending_files: dict = {}  # remote_file -> last_known_size
