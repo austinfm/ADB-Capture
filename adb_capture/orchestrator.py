@@ -83,7 +83,9 @@ def save_cached_ip(ip: str) -> None:
 
 def get_remote_file_size(adb_path: str, remote_file: str) -> int | None:
     """Retrieves the file size of the remote file in bytes using stat -c %s with ls -l fallback."""
-    stdout, _, code = run_adb_cmd(adb_path, ["shell", "stat", "-c", "%s", remote_file])
+    # Quote the path to support spaces and special characters in filenames
+    quoted_file = f'"{remote_file}"'
+    stdout, _, code = run_adb_cmd(adb_path, ["shell", "stat", "-c", "%s", quoted_file])
     if code == 0:
         try:
             return int(stdout.strip())
@@ -91,7 +93,7 @@ def get_remote_file_size(adb_path: str, remote_file: str) -> int | None:
             pass
 
     # Fallback to ls -l
-    stdout, _, code = run_adb_cmd(adb_path, ["shell", "ls", "-l", remote_file])
+    stdout, _, code = run_adb_cmd(adb_path, ["shell", "ls", "-l", quoted_file])
     if code == 0:
         parts = stdout.strip().split()
         for part in parts[3:6]:
@@ -349,8 +351,8 @@ def main():
     if ip:
         print(f"[Orchestrator] Device IP: {ip} (saved to cache)")
 
-    # Ensure Camera directory exists on device
-    run_adb_cmd(adb_path, ["shell", "mkdir", "-p", args.device_dir])
+    # Ensure Camera directory exists on device (quote the path to handle potential spaces)
+    run_adb_cmd(adb_path, ["shell", "mkdir", "-p", f'"{args.device_dir}"'])
 
     # 3. Establish temporal marker
     print("[Orchestrator] Creating experiment marker on device...")
@@ -381,7 +383,7 @@ def main():
         while True:
             stdout, stderr, code = run_adb_cmd(
                 adb_path,
-                ["shell", "find", args.device_dir, "-type", "f", "-newer", "/sdcard/experiment_marker"],
+                ["shell", "find", f'"{args.device_dir}"', "-type", "f", "-newer", "/sdcard/experiment_marker"],
             )
 
             if code != 0:
@@ -442,7 +444,7 @@ def main():
                                     del pending_files[remote_file]
                                     if args.delete_on_device:
                                         print(f"[Orchestrator] Removing from device: {remote_file}")
-                                        run_adb_cmd(adb_path, ["shell", "rm", remote_file])
+                                        run_adb_cmd(adb_path, ["shell", "rm", f'"{remote_file}"'])
                                 else:
                                     print(f"[Error] Failed to pull {remote_file}: {pull_err}")
                     else:
