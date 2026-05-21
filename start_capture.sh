@@ -27,8 +27,18 @@ run_capture() {
 }
 
 # --- Try cached IP first ----------------------------------------------------
-if [ -f .device_ip ]; then
-    DEVICE_IP=$(cat .device_ip)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+IP_CACHE_FILE=""
+if [ -f "$SCRIPT_DIR/.device_ip" ]; then
+    IP_CACHE_FILE="$SCRIPT_DIR/.device_ip"
+elif [ -f .device_ip ]; then
+    IP_CACHE_FILE=".device_ip"
+elif [ -f "$HOME/.adb_capture_device_ip" ]; then
+    IP_CACHE_FILE="$HOME/.adb_capture_device_ip"
+fi
+
+if [ -n "$IP_CACHE_FILE" ]; then
+    DEVICE_IP=$(cat "$IP_CACHE_FILE")
     echo -e "Cached device IP: ${GREEN}$DEVICE_IP${NC}"
     echo "Starting capture..."
     echo -e "${BLUE}---------------------------------------------------${NC}"
@@ -45,7 +55,7 @@ if [ -f .device_ip ]; then
     echo "You may be on a different network or the device IP changed."
     echo ""
     
-    read -p "Run USB discovery to find the new IP? (y/n): " choice
+    read -p "Attempt auto-discovery via USB? (y/n): " choice
     case "$choice" in 
         [yY][eE][sS]|[yY]) 
             echo ""
@@ -57,7 +67,17 @@ if [ -f .device_ip ]; then
     esac
 fi
 
-# --- Guided USB discovery ---------------------------------------------------
+# --- Silent USB discovery first ---------------------------------------------
+echo "Discovering device IP and switching to wireless..."
+echo ""
+run_capture --discover "$@"
+ERR_CODE=$?
+
+if [ $ERR_CODE -eq 0 ]; then
+    exit 0
+fi
+
+# --- Guided USB discovery (only if silent discovery fails) ------------------
 echo -e "${BLUE}===================================================${NC}"
 echo -e "${YELLOW}   WIRELESS SETUP - USB DISCOVERY                  ${NC}"
 echo -e "${BLUE}===================================================${NC}"
@@ -94,7 +114,7 @@ echo ""
 read -p "Press Enter once you see 'Allow USB Debugging' on your phone..."
 
 echo ""
-echo "Discovering device IP and switching to wireless..."
+echo "Retrying discovery..."
 echo ""
 run_capture --discover "$@"
 ERR_CODE=$?

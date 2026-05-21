@@ -83,16 +83,31 @@ python -m adb_capture.orchestrator [FLAGS]
 | Flag | Type | Description |
 | :--- | :--- | :--- |
 | `--ip <IP>` | String | Manually specify the device's IP (e.g., `192.168.1.100`). Skips automatic USB discovery. |
-| `--discover` | Flag | Forces USB discovery to query the device's WiFi IP, configure wireless ADB, and write it to `.device_ip`. |
+| `--discover` | Flag | Forces USB discovery to query the device's WiFi IP, configure wireless ADB, and write it to cache. |
 | `--poll-interval <SEC>` | Integer | Set how frequently (in seconds) the script checks for new files. Default: `3` seconds. |
 | `--delete-on-device` | Flag | Deletes source images/videos from the device after successfully pulling them to save phone storage. |
 | `--output-dir <PATH>` | String | Save pulled files to a local computer folder. If omitted, files are saved in a new timestamped folder (`capture_YYYYMMDD_HHMMSS/`). |
 | `--device-dir <PATH>` | String | Directory path on the Android device to monitor. Default: `/sdcard/DCIM/Camera`. |
 | `--post-process <PATH>` | String | Path to a local Python script to execute when capture ends (e.g., when you hit `Ctrl+C`). |
+| `--type <TYPE>` | Choice | Restrict capture to specific media types. Options: `all` (default), `image`, `video`. |
+| `--dry-run` | Flag | Run in simulation mode: prints what would be pulled or deleted but makes no changes to the device or local filesystem. |
+| `--quiet` | Flag | Run in quiet mode: silences periodic polling status and heartbeat logs, printing only transfer operations and errors. |
 
 ---
 
 ## Example Custom Workflows
+
+### Sync Videos Only
+To capture only videos (e.g., MP4 files) and silence periodic heartbeats:
+```bash
+python -m adb_capture.orchestrator --type video --quiet
+```
+
+### Dry Run Sync Preview
+To check what files would be copied and deleted from your device without actually transferring them:
+```bash
+python -m adb_capture.orchestrator --dry-run --delete-on-device
+```
 
 ### Auto-Delete Captured Files from Phone
 If you are doing high-volume capturing and don't want to fill your device's internal storage, enable auto-deletion:

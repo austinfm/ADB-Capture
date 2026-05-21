@@ -2,13 +2,23 @@
 title ADB Capture - Live Sync
 setlocal
 
-:: ─── Try cached IP first ───────────────────────────────────────────────────
-if exist .device_ip (
-    set /p DEVICE_IP=<.device_ip
+:: Find where the cached IP is stored
+set SCRIPT_DIR=%~dp0
+set IP_CACHE_FILE=
+if exist "%SCRIPT_DIR%.device_ip" (
+    set "IP_CACHE_FILE=%SCRIPT_DIR%.device_ip"
+) else if exist .device_ip (
+    set "IP_CACHE_FILE=.device_ip"
+) else if exist "%USERPROFILE%\.adb_capture_device_ip" (
+    set "IP_CACHE_FILE=%USERPROFILE%\.adb_capture_device_ip"
+)
+
+if defined IP_CACHE_FILE (
+    set /p DEVICE_IP=<%IP_CACHE_FILE%
     echo ===================================================
     echo   ADB IMAGE CAPTURE - LIVE SYNC
     echo ===================================================
-    echo   Cached device: %DEVICE_IP%
+    echo   Cached device IP: %DEVICE_IP%
     echo   Starting capture...
     echo ===================================================
     echo.
@@ -19,12 +29,18 @@ if exist .device_ip (
     echo [!] Could not connect to %DEVICE_IP%.
     echo     You may be on a different network or the device IP changed.
     echo.
-    choice /C YN /M "Run USB discovery to find the new IP?"
+    choice /C YN /M "Attempt auto-discovery via USB?"
     if %ERRORLEVEL% EQU 2 goto :done
     echo.
 )
 
-:: ─── Guided USB discovery ──────────────────────────────────────────────────
+:: ─── Silent USB discovery first ────────────────────────────────────────────
+echo Discovering device IP and switching to wireless...
+echo.
+python -u -m adb_capture.orchestrator --discover %*
+if %ERRORLEVEL% EQU 0 goto :done
+
+:: ─── Guided USB discovery (only if silent discovery fails) ────────────────
 :discover_walk
 echo.
 echo ===================================================
@@ -65,7 +81,7 @@ echo Press any key once you see "Allow USB Debugging" on your phone...
 pause
 
 echo.
-echo Discovering device IP and switching to wireless...
+echo Retrying discovery...
 echo.
 python -u -m adb_capture.orchestrator --discover %*
 if %ERRORLEVEL% EQU 0 goto :done

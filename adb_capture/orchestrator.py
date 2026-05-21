@@ -5,7 +5,8 @@ import subprocess
 import argparse
 import shutil
 
-IP_CACHE_FILE = ".device_ip"
+IP_CACHE_FILE_LOCAL = ".device_ip"
+IP_CACHE_FILE_HOME = os.path.join(os.path.expanduser("~"), ".adb_capture_device_ip")
 
 
 def find_adb() -> str:
@@ -53,16 +54,62 @@ def run_adb_cmd(adb_path: str, args: list, timeout: int = 10):
 
 
 def load_cached_ip() -> str | None:
-    if os.path.exists(IP_CACHE_FILE):
-        ip = open(IP_CACHE_FILE).read().strip()
-        if ip:
-            return ip
+    # 1. Check local directory CWD
+    if os.path.exists(IP_CACHE_FILE_LOCAL):
+        try:
+            with open(IP_CACHE_FILE_LOCAL) as f:
+                ip = f.read().strip()
+                if ip:
+                    return ip
+        except Exception:
+            pass
+
+    # 2. Check repo root relative to orchestrator.py location
+    try:
+        repo_root_cache = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".device_ip")
+        if os.path.exists(repo_root_cache):
+            with open(repo_root_cache) as f:
+                ip = f.read().strip()
+                if ip:
+                    return ip
+    except Exception:
+        pass
+
+    # 3. Check user home directory
+    if os.path.exists(IP_CACHE_FILE_HOME):
+        try:
+            with open(IP_CACHE_FILE_HOME) as f:
+                ip = f.read().strip()
+                if ip:
+                    return ip
+        except Exception:
+            pass
+
     return None
 
 
 def save_cached_ip(ip: str) -> None:
-    with open(IP_CACHE_FILE, "w") as f:
-        f.write(ip)
+    # Write to local CWD if writable
+    try:
+        with open(IP_CACHE_FILE_LOCAL, "w") as f:
+            f.write(ip)
+    except Exception:
+        pass
+
+    # Write to repo root if writable
+    try:
+        repo_root_cache = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".device_ip")
+        with open(repo_root_cache, "w") as f:
+            f.write(ip)
+    except Exception:
+        pass
+
+    # Write to home directory
+    try:
+        with open(IP_CACHE_FILE_HOME, "w") as f:
+            f.write(ip)
+    except Exception:
+        pass
 
 
 def get_remote_file_size(adb_path: str, remote_file: str) -> int | None:
@@ -213,6 +260,9 @@ def main():
     parser.add_argument("--output-dir", type=str, default=None, help="Directory to save pulled images (default: timestamped folder)")
     parser.add_argument("--device-dir", type=str, default="/sdcard/DCIM/Camera", help="Directory on the Android device to monitor (default: /sdcard/DCIM/Camera)")
     parser.add_argument("--post-process", type=str, default=None, help="Path to a Python script to run after the capture session ends")
+    parser.add_argument("--type", type=str, choices=["all", "image", "video"], default="all", help="Media type to capture (all, image, video. default: all)")
+    parser.add_argument("--dry-run", action="store_true", help="Preview the sync process without modifying the device or pulling files")
+    parser.add_argument("--quiet", action="store_true", help="Silence polling, heartbeat, and write-progress messages")
     args = parser.parse_args()
 
     adb_path = find_adb()
@@ -230,7 +280,7 @@ def main():
 
     print(f"[Orchestrator] Connected to: {device_info}")
     if ip:
-        print(f"[Orchestrator] Device IP: {ip} (saved to {IP_CACHE_FILE})")
+        print(f"[Orchestrator] Device IP: {ip} (saved to cache)")
 
     # Ensure Camera directory exists on device
     run_adb_cmd(adb_path, ["shell", "mkdir", "-p", args.device_dir])
@@ -256,7 +306,8 @@ def main():
 
     processed_frames: set = set()
     pending_files: dict = {}  # remote_file -> last_known_size
-    print("[Orchestrator] System Live: Polling for new files...")
+    if not args.quiet:
+        print("[Orchestrator] System Live: Polling for new files...")
 
     # 4. Continuous watch loop
     try:
@@ -289,6 +340,11 @@ def main():
 
                 filename = os.path.basename(remote_file)
                 file_type = get_file_type_label(filename)
+                
+                # Apply type filtering
+                if args.type != "all" and file_type != args.type:
+                    continue
+
                 local_file = os.path.join(output_path, filename)
 
                 current_size = get_remote_file_size(adb_path, remote_file)
@@ -297,25 +353,34 @@ def main():
 
                 if remote_file not in pending_files:
                     pending_files[remote_file] = current_size
-                    print(f"[Orchestrator] New {file_type} detected: {remote_file} (waiting for file to write completely)")
+                    if not args.quiet:
+                        print(f"[Orchestrator] New {file_type} detected: {remote_file} (waiting for file to write completely)")
                 else:
                     last_size = pending_files[remote_file]
                     if current_size == last_size:
                         if current_size > 0:
-                            print(f"[Orchestrator] Pulling {file_type}: {remote_file} -> {local_file}")
-                            _, pull_err, pull_code = run_adb_cmd(adb_path, ["pull", remote_file, local_file])
-
-                            if pull_code == 0:
-                                print(f"[Orchestrator] Pull complete.")
+                            if args.dry_run:
+                                print(f"[Dry Run] Would pull {file_type}: {remote_file} -> {local_file}")
                                 processed_frames.add(remote_file)
                                 del pending_files[remote_file]
                                 if args.delete_on_device:
-                                    print(f"[Orchestrator] Removing from device: {remote_file}")
-                                    run_adb_cmd(adb_path, ["shell", "rm", remote_file])
+                                    print(f"[Dry Run] Would remove from device: {remote_file}")
                             else:
-                                print(f"[Error] Failed to pull {remote_file}: {pull_err}")
+                                print(f"[Orchestrator] Pulling {file_type}: {remote_file} -> {local_file}")
+                                _, pull_err, pull_code = run_adb_cmd(adb_path, ["pull", remote_file, local_file])
+
+                                if pull_code == 0:
+                                    print(f"[Orchestrator] Pull complete.")
+                                    processed_frames.add(remote_file)
+                                    del pending_files[remote_file]
+                                    if args.delete_on_device:
+                                        print(f"[Orchestrator] Removing from device: {remote_file}")
+                                        run_adb_cmd(adb_path, ["shell", "rm", remote_file])
+                                else:
+                                    print(f"[Error] Failed to pull {remote_file}: {pull_err}")
                     else:
-                        print(f"[Orchestrator] {file_type} is still writing (size: {current_size} bytes)...")
+                        if not args.quiet:
+                            print(f"[Orchestrator] {file_type} is still writing (size: {current_size} bytes)...")
                         pending_files[remote_file] = current_size
 
             time.sleep(args.poll_interval)
