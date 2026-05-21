@@ -211,6 +211,7 @@ def main():
     parser.add_argument("--poll-interval", type=int, default=3, help="Polling interval in seconds (default 3)")
     parser.add_argument("--delete-on-device", action="store_true", help="Delete source files from device after transfer to prevent storage bottlenecks")
     parser.add_argument("--output-dir", type=str, default=None, help="Directory to save pulled images (default: timestamped folder)")
+    parser.add_argument("--device-dir", type=str, default="/sdcard/DCIM/Camera", help="Directory on the Android device to monitor (default: /sdcard/DCIM/Camera)")
     parser.add_argument("--post-process", type=str, default=None, help="Path to a Python script to run after the capture session ends")
     args = parser.parse_args()
 
@@ -232,7 +233,7 @@ def main():
         print(f"[Orchestrator] Device IP: {ip} (saved to {IP_CACHE_FILE})")
 
     # Ensure Camera directory exists on device
-    run_adb_cmd(adb_path, ["shell", "mkdir", "-p", "/sdcard/DCIM/Camera"])
+    run_adb_cmd(adb_path, ["shell", "mkdir", "-p", args.device_dir])
 
     # 3. Establish temporal marker
     print("[Orchestrator] Creating experiment marker on device...")
@@ -262,7 +263,7 @@ def main():
         while True:
             stdout, stderr, code = run_adb_cmd(
                 adb_path,
-                ["shell", "find", "/sdcard/DCIM/Camera", "-type", "f", "-newer", "/sdcard/experiment_marker"],
+                ["shell", "find", args.device_dir, "-type", "f", "-newer", "/sdcard/experiment_marker"],
             )
 
             if code != 0:

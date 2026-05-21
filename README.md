@@ -86,7 +86,8 @@ python -m adb_capture.orchestrator [FLAGS]
 | `--discover` | Flag | Forces USB discovery to query the device's WiFi IP, configure wireless ADB, and write it to `.device_ip`. |
 | `--poll-interval <SEC>` | Integer | Set how frequently (in seconds) the script checks for new files. Default: `3` seconds. |
 | `--delete-on-device` | Flag | Deletes source images/videos from the device after successfully pulling them to save phone storage. |
-| `--output-dir <PATH>` | String | Save pulled files to a specific folder. If omitted, files are saved in a new timestamped folder (`capture_YYYYMMDD_HHMMSS/`). |
+| `--output-dir <PATH>` | String | Save pulled files to a local computer folder. If omitted, files are saved in a new timestamped folder (`capture_YYYYMMDD_HHMMSS/`). |
+| `--device-dir <PATH>` | String | Directory path on the Android device to monitor. Default: `/sdcard/DCIM/Camera`. |
 | `--post-process <PATH>` | String | Path to a local Python script to execute when capture ends (e.g., when you hit `Ctrl+C`). |
 
 ---
@@ -97,6 +98,16 @@ python -m adb_capture.orchestrator [FLAGS]
 If you are doing high-volume capturing and don't want to fill your device's internal storage, enable auto-deletion:
 ```bash
 python -m adb_capture.orchestrator --delete-on-device
+```
+
+### Sync Screenshots Instead of Camera Photos
+You can direct the sync tool to watch your screenshots directory on your phone instead of the default camera folder:
+```bash
+# Using Python module
+python -m adb_capture.orchestrator --device-dir /sdcard/DCIM/Screenshots
+
+# Or using the start wrapper scripts
+start_capture.bat --device-dir /sdcard/DCIM/Screenshots
 ```
 
 ### Run Custom Post-Processing

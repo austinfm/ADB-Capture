@@ -33,7 +33,7 @@ if [ -f .device_ip ]; then
     echo "Starting capture..."
     echo -e "${BLUE}---------------------------------------------------${NC}"
     
-    run_capture
+    run_capture "$@"
     ERR_CODE=$?
     
     if [ $ERR_CODE -eq 0 ]; then
@@ -96,7 +96,7 @@ read -p "Press Enter once you see 'Allow USB Debugging' on your phone..."
 echo ""
 echo "Discovering device IP and switching to wireless..."
 echo ""
-run_capture --discover
+run_capture --discover "$@"
 ERR_CODE=$?
 
 if [ $ERR_CODE -eq 0 ]; then
