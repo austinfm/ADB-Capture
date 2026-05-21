@@ -3,16 +3,44 @@ import sys
 import time
 import subprocess
 import argparse
+import shutil
 
-# Path to the ADB executable installed via the Android CLI plugin
-DEFAULT_ADB_PATH = r"C:\Users\afm8\AppData\Local\Android\Sdk\platform-tools\adb.exe"
+IP_CACHE_FILE = ".device_ip"
 
-def find_adb():
-    if os.path.exists(DEFAULT_ADB_PATH):
-        return DEFAULT_ADB_PATH
+
+def find_adb() -> str:
+    """Dynamically locates the ADB executable across different OS platforms."""
+    # 1. Try if adb is on the system PATH
+    adb_in_path = shutil.which("adb")
+    if adb_in_path:
+        return adb_in_path
+
+    # 2. Try standard Android SDK paths dynamically based on the current user's profile
+    home = os.path.expanduser("~")
+    
+    # Windows paths
+    if sys.platform.startswith("win"):
+        windows_default = os.path.join(home, "AppData", "Local", "Android", "Sdk", "platform-tools", "adb.exe")
+        if os.path.exists(windows_default):
+            return windows_default
+
+    # macOS paths
+    elif sys.platform == "darwin":
+        mac_default = os.path.join(home, "Library", "Android", "sdk", "platform-tools", "adb")
+        if os.path.exists(mac_default):
+            return mac_default
+
+    # Linux paths
+    else:
+        linux_default = os.path.join(home, "Android", "Sdk", "platform-tools", "adb")
+        if os.path.exists(linux_default):
+            return linux_default
+
+    # Fallback to "adb" and let subprocess try to resolve it
     return "adb"
 
-def run_adb_cmd(adb_path, args, timeout=10):
+
+def run_adb_cmd(adb_path: str, args: list, timeout: int = 10):
     """Runs an ADB command and returns (stdout, stderr, returncode)."""
     cmd = [adb_path] + args
     try:
@@ -23,7 +51,125 @@ def run_adb_cmd(adb_path, args, timeout=10):
     except Exception as e:
         return "", str(e), -1
 
-def verify_connection(adb_path, ip=None):
+
+def load_cached_ip() -> str | None:
+    if os.path.exists(IP_CACHE_FILE):
+        ip = open(IP_CACHE_FILE).read().strip()
+        if ip:
+            return ip
+    return None
+
+
+def save_cached_ip(ip: str) -> None:
+    with open(IP_CACHE_FILE, "w") as f:
+        f.write(ip)
+
+
+def get_remote_file_size(adb_path: str, remote_file: str) -> int | None:
+    """Retrieves the file size of the remote file in bytes using stat -c %s with ls -l fallback."""
+    stdout, _, code = run_adb_cmd(adb_path, ["shell", "stat", "-c", "%s", remote_file])
+    if code == 0:
+        try:
+            return int(stdout.strip())
+        except ValueError:
+            pass
+
+    # Fallback to ls -l
+    stdout, _, code = run_adb_cmd(adb_path, ["shell", "ls", "-l", remote_file])
+    if code == 0:
+        parts = stdout.strip().split()
+        for part in parts[3:6]:
+            if part.isdigit():
+                return int(part)
+    return None
+
+
+def get_file_type_label(filename: str) -> str:
+    """Returns a label ('image', 'video', or 'file') based on extension."""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in ('.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.gif'):
+        return "image"
+    elif ext in ('.mp4', '.mkv', '.3gp', '.webm', '.mov', '.avi'):
+        return "video"
+    return "file"
+
+
+def discover_device_ip(adb_path: str) -> str | None:
+    """Reads the WiFi IP from a USB-connected device via wlan0."""
+    print("[Discovery] Checking for USB-connected device...")
+    stdout, _, code = run_adb_cmd(adb_path, ["devices"])
+    lines = [l.strip() for l in stdout.splitlines() if l.strip() and "List of" not in l]
+    usb_devices = [l for l in lines if "\tdevice" in l and not l.startswith("192.") and not l.startswith("10.")]
+    if code != 0 or not usb_devices:
+        print("[Discovery] No USB device found. Connect the device via USB with USB debugging enabled.")
+        return None
+
+    # Try wlan0 inet address first
+    stdout, _, code = run_adb_cmd(adb_path, ["shell", "ip", "addr", "show", "wlan0"])
+    if code == 0:
+        for line in stdout.splitlines():
+            line = line.strip()
+            if line.startswith("inet ") and not line.startswith("inet6"):
+                ip = line.split()[1].split("/")[0]
+                print(f"[Discovery] Device WiFi IP: {ip}")
+                return ip
+
+    # Fallback: ip route
+    stdout, _, code = run_adb_cmd(adb_path, ["shell", "ip", "route"])
+    if code == 0:
+        for line in stdout.splitlines():
+            if "wlan0" in line and "src" in line:
+                parts = line.split("src")
+                if len(parts) > 1:
+                    ip = parts[1].strip().split()[0]
+                    print(f"[Discovery] Device WiFi IP (via route): {ip}")
+                    return ip
+
+    print("[Discovery] Could not determine device IP. Is WiFi enabled on the device?")
+    return None
+
+
+def enable_wireless_adb(adb_path: str, ip: str) -> bool:
+    """Switches the USB-connected device to TCP mode and connects wirelessly."""
+    print("[Discovery] Enabling wireless ADB (tcpip 5555)...")
+    _, err, code = run_adb_cmd(adb_path, ["tcpip", "5555"])
+    if code != 0:
+        print(f"[Discovery] Failed to enable tcpip mode: {err}")
+        return False
+    time.sleep(2)
+    print(f"[Discovery] Connecting wirelessly to {ip}:5555 — you can unplug USB now.")
+    run_adb_cmd(adb_path, ["connect", f"{ip}:5555"])
+    return True
+
+
+def resolve_ip(adb_path: str, args) -> str | None:
+    """Returns the IP to use, via --ip, --discover, or cached value."""
+    if args.ip:
+        return args.ip
+
+    if args.discover:
+        ip = discover_device_ip(adb_path)
+        if not ip:
+            return None
+        enable_wireless_adb(adb_path, ip)
+        save_cached_ip(ip)
+        return ip
+
+    # No flag provided — try cache, then auto-discover
+    cached = load_cached_ip()
+    if cached:
+        print(f"[Orchestrator] Using cached device IP: {cached}")
+        return cached
+
+    print("[Orchestrator] No IP provided and no cache found. Attempting USB discovery...")
+    ip = discover_device_ip(adb_path)
+    if ip:
+        enable_wireless_adb(adb_path, ip)
+        save_cached_ip(ip)
+    return ip
+
+
+def verify_connection(adb_path: str, ip: str | None = None):
     """Verifies that the device is connected and responsive."""
     if ip:
         for attempt in range(3):
@@ -36,13 +182,13 @@ def verify_connection(adb_path, ip=None):
             print(f"[Orchestrator] Attempt {attempt + 1} failed: {stderr.strip() or 'Device not responsive'}")
         return False, "Could not establish verified connection to WiFi device."
     else:
-        # Check standard connected devices (USB, emulator, etc.)
         stdout, stderr, code = run_adb_cmd(adb_path, ["shell", "getprop", "ro.product.model"])
         if code == 0 and stdout.strip():
             return True, stdout.strip()
         return False, stderr.strip() or "No device connected."
 
-def silent_reconnect(adb_path, ip=None):
+
+def silent_reconnect(adb_path: str, ip: str | None = None) -> bool:
     """Attempts to reconnect silently for 30 seconds."""
     start_time = time.time()
     print("[Fail-safe] Connection lost. Attempting silent reconnection for 30 seconds...")
@@ -50,7 +196,7 @@ def silent_reconnect(adb_path, ip=None):
         if ip:
             run_adb_cmd(adb_path, ["connect", f"{ip}:5555"])
         time.sleep(2)
-        stdout, stderr, code = run_adb_cmd(adb_path, ["shell", "getprop", "ro.product.model"])
+        stdout, _, code = run_adb_cmd(adb_path, ["shell", "getprop", "ro.product.model"])
         if code == 0 and stdout.strip():
             print(f"[Fail-safe] Reconnected successfully to device: {stdout.strip()}")
             return True
@@ -60,33 +206,39 @@ def silent_reconnect(adb_path, ip=None):
 
 def main():
     parser = argparse.ArgumentParser(description="ADB Image Collection Orchestrator")
-    parser.add_argument("--ip", type=str, help="IP address of the Android device to connect to via WiFi (e.g. 192.168.1.100)")
+    parser.add_argument("--ip", type=str, help="IP address of the Android device (e.g. 192.168.1.100). Skips discovery.")
+    parser.add_argument("--discover", action="store_true", help="Force USB discovery: reads WiFi IP from USB-connected device, enables wireless ADB, then proceeds.")
     parser.add_argument("--poll-interval", type=int, default=3, help="Polling interval in seconds (default 3)")
-    parser.add_argument("--delete-on-device", action="store_true", help="Delete source files from device after successful transfer to prevent bottlenecks")
-    parser.add_argument("--output-dir", type=str, default=None, help="Directory to save pulled images (default: timestamped folder in current directory)")
-    parser.add_argument("--post-process", type=str, default=None, help="Path to a Python script to run automatically after the capture session ends")
+    parser.add_argument("--delete-on-device", action="store_true", help="Delete source files from device after transfer to prevent storage bottlenecks")
+    parser.add_argument("--output-dir", type=str, default=None, help="Directory to save pulled images (default: timestamped folder)")
+    parser.add_argument("--post-process", type=str, default=None, help="Path to a Python script to run after the capture session ends")
     args = parser.parse_args()
 
     adb_path = find_adb()
-    print(f"[Orchestrator] Using ADB path: {adb_path}")
+    print(f"[Orchestrator] Using ADB: {adb_path}")
 
-    # 1. Verify connection
+    # 1. Resolve device IP
+    ip = resolve_ip(adb_path, args)
+
+    # 2. Verify connection
     print("[Orchestrator] Connecting to device...")
-    connected, device_info = verify_connection(adb_path, args.ip)
+    connected, device_info = verify_connection(adb_path, ip)
     if not connected:
-        print(f"[Error] Failed to connect to device. Details: {device_info}")
+        print(f"[Error] Failed to connect: {device_info}")
         sys.exit(1)
-    
-    print(f"[Orchestrator] Connected to: {device_info}")
 
-    # Ensure source path directory exists on the device
+    print(f"[Orchestrator] Connected to: {device_info}")
+    if ip:
+        print(f"[Orchestrator] Device IP: {ip} (saved to {IP_CACHE_FILE})")
+
+    # Ensure Camera directory exists on device
     run_adb_cmd(adb_path, ["shell", "mkdir", "-p", "/sdcard/DCIM/Camera"])
 
-    # 2. Establish Temporal Marker
+    # 3. Establish temporal marker
     print("[Orchestrator] Creating experiment marker on device...")
     _, err, code = run_adb_cmd(adb_path, ["shell", "touch", "/sdcard/experiment_marker"])
     if code != 0:
-        print(f"[Error] Failed to create experiment marker on device: {err}")
+        print(f"[Error] Failed to create experiment marker: {err}")
         sys.exit(1)
     print("[Orchestrator] Temporal marker set at /sdcard/experiment_marker")
 
@@ -101,59 +253,69 @@ def main():
         os.makedirs(output_path, exist_ok=True)
         print(f"[Orchestrator] Session folder: {run_id}/")
 
-    # In-memory set to track files pulled this session
-    processed_frames = set()
+    processed_frames: set = set()
+    pending_files: dict = {}  # remote_file -> last_known_size
+    print("[Orchestrator] System Live: Polling for new files...")
 
-    print("[Orchestrator] System Live: Polling for new images...")
-
-    # 3. Continuous Watch Loop
+    # 4. Continuous watch loop
     try:
         while True:
-            # Check for new files using find with -newer flag
             stdout, stderr, code = run_adb_cmd(
-                adb_path, 
-                ["shell", "find", "/sdcard/DCIM/Camera", "-type", "f", "-newer", "/sdcard/experiment_marker"]
+                adb_path,
+                ["shell", "find", "/sdcard/DCIM/Camera", "-type", "f", "-newer", "/sdcard/experiment_marker"],
             )
 
-            # If connection dropped, initiate reconnection
             if code != 0:
-                # Common connection loss indicator
                 if "device not found" in stderr or "offline" in stderr or code == -1 or not stderr:
-                    if not silent_reconnect(adb_path, args.ip):
+                    if not silent_reconnect(adb_path, ip):
                         print("[CRITICAL ALERT] ADB connection lost. Silently retried for 30s but failed. Operator intervention required.")
                         break
                     continue
                 else:
-                    # Ignore other find errors (e.g. directory transiently unavailable/empty)
                     time.sleep(args.poll_interval)
                     continue
 
-            # Parse new files
             found_files = [line.strip() for line in stdout.splitlines() if line.strip()]
-            
+
+            # Clean up pending files that are no longer present on device
+            for pending_file in list(pending_files.keys()):
+                if pending_file not in found_files:
+                    del pending_files[pending_file]
+
             for remote_file in found_files:
                 if remote_file in processed_frames:
                     continue
 
                 filename = os.path.basename(remote_file)
+                file_type = get_file_type_label(filename)
                 local_file = os.path.join(output_path, filename)
 
-                print(f"[Orchestrator] New image detected: {remote_file}")
-                print(f"[Orchestrator] Pulling: {remote_file} -> {local_file}")
-                
-                # Pull the file
-                _, pull_err, pull_code = run_adb_cmd(adb_path, ["pull", remote_file, local_file])
-                
-                if pull_code == 0:
-                    print(f"[Orchestrator] Pull complete.")
-                    processed_frames.add(remote_file)
+                current_size = get_remote_file_size(adb_path, remote_file)
+                if current_size is None:
+                    continue
 
-                    # Prevent device bottlenecking by deleting remote file if requested
-                    if args.delete_on_device:
-                        print(f"[Orchestrator] Removing file from device to free storage: {remote_file}")
-                        run_adb_cmd(adb_path, ["shell", "rm", remote_file])
+                if remote_file not in pending_files:
+                    pending_files[remote_file] = current_size
+                    print(f"[Orchestrator] New {file_type} detected: {remote_file} (waiting for file to write completely)")
                 else:
-                    print(f"[Error] Failed to pull {remote_file}: {pull_err}")
+                    last_size = pending_files[remote_file]
+                    if current_size == last_size:
+                        if current_size > 0:
+                            print(f"[Orchestrator] Pulling {file_type}: {remote_file} -> {local_file}")
+                            _, pull_err, pull_code = run_adb_cmd(adb_path, ["pull", remote_file, local_file])
+
+                            if pull_code == 0:
+                                print(f"[Orchestrator] Pull complete.")
+                                processed_frames.add(remote_file)
+                                del pending_files[remote_file]
+                                if args.delete_on_device:
+                                    print(f"[Orchestrator] Removing from device: {remote_file}")
+                                    run_adb_cmd(adb_path, ["shell", "rm", remote_file])
+                            else:
+                                print(f"[Error] Failed to pull {remote_file}: {pull_err}")
+                    else:
+                        print(f"[Orchestrator] {file_type} is still writing (size: {current_size} bytes)...")
+                        pending_files[remote_file] = current_size
 
             time.sleep(args.poll_interval)
 
@@ -162,6 +324,7 @@ def main():
         if args.post_process:
             print(f"[Orchestrator] Running post-process: {args.post_process}")
             subprocess.run([sys.executable, args.post_process])
+
 
 if __name__ == "__main__":
     main()

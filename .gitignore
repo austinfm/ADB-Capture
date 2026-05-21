@@ -1,0 +1,12 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local device IP cache
+.device_ip
+
+# Capture session output folders
+capture_*/
+output_*/
+*.log
