@@ -13,7 +13,6 @@ Perfect for mobile testing, UX design workflows, collection of training data, or
 - **Fail-Safe Reconnection**: Automatically monitors connectivity and attempts to reconnect silently for up to 30 seconds if the connection drops.
 - **File Stability Protection**: Checks remote file sizes sequentially, ensuring a photo or video is fully written on the device before pulling it (prevents corrupted half-written transfers).
 - **Temporal Marker**: Uses an session-based anchor marker (`/sdcard/experiment_marker`) on startup to ensure only images/videos captured *after* starting the utility are pulled.
-- **Post-processing Hooks**: Trigger a custom Python script automatically when the capture session ends (e.g., to batch crop, rename, upload, or process the images).
 - **Cross-Platform**: Run on Windows via `.bat` wrapper or macOS/Linux via `.sh` shell script.
 
 ---
@@ -88,7 +87,6 @@ python -m adb_capture.orchestrator [FLAGS]
 | `--delete-on-device` | Flag | Deletes source images/videos from the device after successfully pulling them to save phone storage. |
 | `--output-dir <PATH>` | String | Save pulled files to a local computer folder. If omitted, files are saved in a new timestamped folder (`capture_YYYYMMDD_HHMMSS/`). |
 | `--device-dir <PATH>` | String | Directory path on the Android device to monitor. Default: `/sdcard/DCIM/Camera`. |
-| `--post-process <PATH>` | String | Path to a local Python script to execute when capture ends (e.g., when you hit `Ctrl+C`). |
 | `--type <TYPE>` | Choice | Restrict capture to specific media types. Options: `all` (default), `image`, `video`. |
 | `--dry-run` | Flag | Run in simulation mode: prints what would be pulled or deleted but makes no changes to the device or local filesystem. |
 | `--quiet` | Flag | Run in quiet mode: silences periodic polling status and heartbeat logs, printing only transfer operations and errors. |
@@ -123,12 +121,6 @@ python -m adb_capture.orchestrator --device-dir /sdcard/DCIM/Screenshots
 
 # Or using the start wrapper scripts
 start_capture.bat --device-dir /sdcard/DCIM/Screenshots
-```
-
-### Run Custom Post-Processing
-Let's say you have a script called `process_images.py` that uploads or converts your files. You can configure the capture tool to trigger it automatically on exit:
-```bash
-python -m adb_capture.orchestrator --post-process process_images.py
 ```
 
 ---

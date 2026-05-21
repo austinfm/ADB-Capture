@@ -5,8 +5,7 @@ import subprocess
 import argparse
 import shutil
 
-IP_CACHE_FILE_LOCAL = ".device_ip"
-IP_CACHE_FILE_HOME = os.path.join(os.path.expanduser("~"), ".adb_capture_device_ip")
+IP_CACHE_FILE = os.path.join(os.path.expanduser("~"), ".adb_capture_device_ip")
 
 
 def find_adb() -> str:
@@ -54,59 +53,20 @@ def run_adb_cmd(adb_path: str, args: list, timeout: int = 10):
 
 
 def load_cached_ip() -> str | None:
-    # 1. Check local directory CWD
-    if os.path.exists(IP_CACHE_FILE_LOCAL):
+    if os.path.exists(IP_CACHE_FILE):
         try:
-            with open(IP_CACHE_FILE_LOCAL) as f:
+            with open(IP_CACHE_FILE) as f:
                 ip = f.read().strip()
                 if ip:
                     return ip
         except Exception:
             pass
-
-    # 2. Check repo root relative to orchestrator.py location
-    try:
-        repo_root_cache = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".device_ip")
-        if os.path.exists(repo_root_cache):
-            with open(repo_root_cache) as f:
-                ip = f.read().strip()
-                if ip:
-                    return ip
-    except Exception:
-        pass
-
-    # 3. Check user home directory
-    if os.path.exists(IP_CACHE_FILE_HOME):
-        try:
-            with open(IP_CACHE_FILE_HOME) as f:
-                ip = f.read().strip()
-                if ip:
-                    return ip
-        except Exception:
-            pass
-
     return None
 
 
 def save_cached_ip(ip: str) -> None:
-    # Write to local CWD if writable
     try:
-        with open(IP_CACHE_FILE_LOCAL, "w") as f:
-            f.write(ip)
-    except Exception:
-        pass
-
-    # Write to repo root if writable
-    try:
-        repo_root_cache = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".device_ip")
-        with open(repo_root_cache, "w") as f:
-            f.write(ip)
-    except Exception:
-        pass
-
-    # Write to home directory
-    try:
-        with open(IP_CACHE_FILE_HOME, "w") as f:
+        with open(IP_CACHE_FILE, "w") as f:
             f.write(ip)
     except Exception:
         pass
@@ -213,7 +173,8 @@ def resolve_ip(adb_path: str, args) -> str | None:
     if ip:
         enable_wireless_adb(adb_path, ip)
         save_cached_ip(ip)
-    return ip
+        return ip
+    return None
 
 
 def verify_connection(adb_path: str, ip: str | None = None):
@@ -251,6 +212,48 @@ def silent_reconnect(adb_path: str, ip: str | None = None) -> bool:
     return False
 
 
+def show_onboarding_guide():
+    """Displays step-by-step instructions to set up USB debugging and pairing."""
+    print("\n" + "=" * 55)
+    print("  WIRELESS SETUP - USB DISCOVERY")
+    print("=" * 55 + "\n")
+    print("We'll pair your phone over WiFi using ADB.")
+    print("This takes about 30 seconds on the first run.\n")
+
+    print("--- STEP 1: Enable Developer Options (skip if done) ---")
+    print("  1. Open Settings on your phone")
+    print("  2. Go to 'About Phone'")
+    print("  3. Tap 'Build Number' 7 times rapidly")
+    print("     You'll see: 'You are now a developer!'\n")
+    print("(If you already have Developer Options, press Enter to continue to Step 2.)")
+    try:
+        input("Press Enter to continue...")
+    except KeyboardInterrupt:
+        print("\nExiting.")
+        sys.exit(0)
+
+    print("\n--- STEP 2: Enable USB Debugging ---")
+    print("  1. Go to Settings > Developer Options")
+    print("  2. Toggle 'USB Debugging' to ON\n")
+    try:
+        input("Press Enter to continue...")
+    except KeyboardInterrupt:
+        print("\nExiting.")
+        sys.exit(0)
+
+    print("\n--- STEP 3: Connect via USB ---")
+    print("  1. Plug your phone into this computer with a USB cable")
+    print("     (use a data cable, not a charge-only cable)")
+    print("  2. On the phone, tap ALLOW when asked about USB Debugging")
+    print("     Tip: check 'Always allow from this computer' to skip this next time\n")
+    try:
+        input("Press Enter once you see 'Allow USB Debugging' on your phone...")
+    except KeyboardInterrupt:
+        print("\nExiting.")
+        sys.exit(0)
+    print()
+
+
 def main():
     parser = argparse.ArgumentParser(description="ADB Image Collection Orchestrator")
     parser.add_argument("--ip", type=str, help="IP address of the Android device (e.g. 192.168.1.100). Skips discovery.")
@@ -259,7 +262,6 @@ def main():
     parser.add_argument("--delete-on-device", action="store_true", help="Delete source files from device after transfer to prevent storage bottlenecks")
     parser.add_argument("--output-dir", type=str, default=None, help="Directory to save pulled images (default: timestamped folder)")
     parser.add_argument("--device-dir", type=str, default="/sdcard/DCIM/Camera", help="Directory on the Android device to monitor (default: /sdcard/DCIM/Camera)")
-    parser.add_argument("--post-process", type=str, default=None, help="Path to a Python script to run after the capture session ends")
     parser.add_argument("--type", type=str, choices=["all", "image", "video"], default="all", help="Media type to capture (all, image, video. default: all)")
     parser.add_argument("--dry-run", action="store_true", help="Preview the sync process without modifying the device or pulling files")
     parser.add_argument("--quiet", action="store_true", help="Silence polling, heartbeat, and write-progress messages")
@@ -271,11 +273,44 @@ def main():
     # 1. Resolve device IP
     ip = resolve_ip(adb_path, args)
 
-    # 2. Verify connection
-    print("[Orchestrator] Connecting to device...")
-    connected, device_info = verify_connection(adb_path, ip)
+    # 2. Resolve IP and Verify connection
+    connected = False
+    device_info = ""
+
+    if ip:
+        connected, device_info = verify_connection(adb_path, ip)
+        if not connected:
+            print(f"\n[!] Could not connect to {ip}.")
+            print("You may be on a different network or the device IP changed.\n")
+            try:
+                choice = input("Attempt auto-discovery via USB? (y/n): ").strip().lower()
+            except KeyboardInterrupt:
+                sys.exit(0)
+            if choice in ('y', 'yes'):
+                print("[Discovery] Discovering device IP and switching to wireless...")
+                discovered_ip = discover_device_ip(adb_path)
+                if discovered_ip and enable_wireless_adb(adb_path, discovered_ip):
+                    save_cached_ip(discovered_ip)
+                    ip = discovered_ip
+                    connected, device_info = verify_connection(adb_path, ip)
+            else:
+                print("Exiting.")
+                sys.exit(1)
+    else:
+        # Check if we can connect to a USB-connected device directly (e.g. standard ADB setup)
+        connected, device_info = verify_connection(adb_path, None)
+
     if not connected:
-        print(f"[Error] Failed to connect: {device_info}")
+        show_onboarding_guide()
+        print("[Discovery] Retrying discovery...")
+        discovered_ip = discover_device_ip(adb_path)
+        if discovered_ip and enable_wireless_adb(adb_path, discovered_ip):
+            save_cached_ip(discovered_ip)
+            ip = discovered_ip
+            connected, device_info = verify_connection(adb_path, ip)
+
+    if not connected:
+        print("[Error] Failed to connect: Could not establish verified connection.")
         sys.exit(1)
 
     print(f"[Orchestrator] Connected to: {device_info}")
@@ -387,9 +422,6 @@ def main():
 
     except KeyboardInterrupt:
         print("\n[Orchestrator] Monitoring stopped by operator.")
-        if args.post_process:
-            print(f"[Orchestrator] Running post-process: {args.post_process}")
-            subprocess.run([sys.executable, args.post_process])
 
 
 if __name__ == "__main__":
