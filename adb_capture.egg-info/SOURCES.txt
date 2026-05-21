@@ -1,0 +1,9 @@
+LICENSE
+README.md
+orchestrator.py
+pyproject.toml
+adb_capture.egg-info/PKG-INFO
+adb_capture.egg-info/SOURCES.txt
+adb_capture.egg-info/dependency_links.txt
+adb_capture.egg-info/entry_points.txt
+adb_capture.egg-info/top_level.txt
