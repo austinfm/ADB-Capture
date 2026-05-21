@@ -81,6 +81,7 @@ python -m adb_capture.orchestrator [FLAGS]
 
 | Flag | Type | Description |
 | :--- | :--- | :--- |
+| `--serial <SERIAL>` | String | Target a specific device by its ADB serial number (USB or wireless). Skips discovery. |
 | `--ip <IP>` | String | Manually specify the device's IP (e.g., `192.168.1.100`). Skips automatic USB discovery. |
 | `--discover` | Flag | Forces USB discovery to query the device's WiFi IP, configure wireless ADB, and write it to cache. |
 | `--poll-interval <SEC>` | Integer | Set how frequently (in seconds) the script checks for new files. Default: `3` seconds. |
@@ -121,6 +122,19 @@ python -m adb_capture.orchestrator --device-dir /sdcard/DCIM/Screenshots
 
 # Or using the start wrapper scripts
 start_capture.bat --device-dir /sdcard/DCIM/Screenshots
+```
+
+### Sync Multiple Devices Simultaneously
+To capture from multiple devices in parallel, open separate terminal windows and target each device by its IP or serial. Ensure you specify separate output folders to prevent files from overwriting:
+
+**Terminal 1 (Device A)**:
+```bash
+python -m adb_capture.orchestrator --ip 192.168.1.100 --output-dir capture_device_A
+```
+
+**Terminal 2 (Device B)**:
+```bash
+python -m adb_capture.orchestrator --serial HT7790200123 --output-dir capture_device_B
 ```
 
 ---

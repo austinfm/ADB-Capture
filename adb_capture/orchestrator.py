@@ -215,19 +215,23 @@ def verify_connection(adb_path: str, ip: str | None = None) -> tuple[bool, str]:
             print(f"[Orchestrator] Attempt {attempt + 1} failed: {stderr.strip() or 'Device not responsive'}")
         return False, "Could not establish verified connection to WiFi device."
     else:
-        # USB-only mode: Find the connected device serial to target it explicitly
+        # USB-only or targeted serial mode: Find the connected device serial
         stdout, _, code = run_adb_cmd(adb_path, ["devices"])
         if code == 0:
             lines = [l.strip() for l in stdout.splitlines() if l.strip() and "List of" not in l]
             devices = [l.split()[0] for l in lines if "\tdevice" in l]
             if devices:
                 old_serial = device_serial
-                device_serial = devices[0]
+                if not device_serial:
+                    device_serial = devices[0]
+                elif device_serial not in devices:
+                    return False, f"Device with serial '{device_serial}' is not connected."
+                
                 stdout, stderr, code = run_adb_cmd(adb_path, ["shell", "getprop", "ro.product.model"])
                 if code == 0 and stdout.strip():
                     return True, stdout.strip()
                 device_serial = old_serial
-        return False, "No device connected."
+        return False, "No device connected or specified device not found."
 
 
 def silent_reconnect(adb_path: str, ip: str | None = None) -> bool:
@@ -290,6 +294,7 @@ def show_onboarding_guide():
 
 def main():
     parser = argparse.ArgumentParser(description="ADB Image Collection Orchestrator")
+    parser.add_argument("--serial", type=str, help="Target a specific device by its ADB serial number (USB or wireless). Skips discovery.")
     parser.add_argument("--ip", type=str, help="IP address of the Android device (e.g. 192.168.1.100). Skips discovery.")
     parser.add_argument("--discover", action="store_true", help="Force USB discovery: reads WiFi IP from USB-connected device, enables wireless ADB, then proceeds.")
     parser.add_argument("--poll-interval", type=int, default=3, help="Polling interval in seconds (default 3)")
@@ -304,14 +309,21 @@ def main():
     adb_path = find_adb()
     print(f"[Orchestrator] Using ADB: {adb_path}")
 
-    # 1. Resolve device IP
-    ip = resolve_ip(adb_path, args)
+    # 1. Resolve device IP / Serial
+    if args.serial:
+        global device_serial
+        device_serial = args.serial
+        ip = None
+    else:
+        ip = resolve_ip(adb_path, args)
 
-    # 2. Resolve IP and Verify connection
+    # 2. Verify connection
     connected = False
     device_info = ""
 
-    if ip:
+    if args.serial:
+        connected, device_info = verify_connection(adb_path, None)
+    elif ip:
         connected, device_info = verify_connection(adb_path, ip)
         if not connected:
             print(f"\n[!] Could not connect to {ip}.")
@@ -335,6 +347,10 @@ def main():
         connected, device_info = verify_connection(adb_path, None)
 
     if not connected:
+        if args.serial:
+            print(f"[Error] Failed to connect: Specified device '{args.serial}' is offline or not found.")
+            sys.exit(1)
+
         show_onboarding_guide()
         print("[Discovery] Retrying discovery...")
         discovered_ip = discover_device_ip(adb_path)
