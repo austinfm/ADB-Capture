@@ -182,13 +182,29 @@ def resolve_ip(adb_path: str, args) -> str | None:
         save_cached_ip(ip)
         return ip
 
-    # No flag provided — try cache, then auto-discover
+    # No flag provided — try cache, then check active devices, then auto-discover
     cached = load_cached_ip()
     if cached:
         print(f"[Orchestrator] Using cached device IP: {cached}")
         return cached
 
-    print("[Orchestrator] No IP provided and no cache found. Attempting USB discovery...")
+    # Check if a device is already connected before triggering USB discovery
+    stdout, _, code = run_adb_cmd(adb_path, ["devices"])
+    if code == 0:
+        lines = [l.strip() for l in stdout.splitlines() if l.strip() and "List of" not in l]
+        devices = [l.split()[0] for l in lines if "\tdevice" in l]
+        if devices:
+            dev = devices[0]
+            if ":" in dev:
+                ip_part = dev.split(":")[0]
+                print(f"[Orchestrator] Found active wireless device connection: {dev}")
+                save_cached_ip(ip_part)
+                return ip_part
+            else:
+                print(f"[Orchestrator] Found active USB device connection: {dev}")
+                return None
+
+    print("[Orchestrator] No IP provided, no cache found, and no active device detected. Attempting USB discovery...")
     ip = discover_device_ip(adb_path)
     if ip:
         enable_wireless_adb(adb_path, ip)
