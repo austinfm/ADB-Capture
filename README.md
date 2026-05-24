@@ -91,6 +91,7 @@ python -m adb_capture.orchestrator [FLAGS]
 | `--type <TYPE>` | Choice | Restrict capture to specific media types. Options: `all` (default), `image`, `video`. |
 | `--dry-run` | Flag | Run in simulation mode: prints what would be pulled or deleted but makes no changes to the device or local filesystem. |
 | `--quiet` | Flag | Run in quiet mode: silences periodic polling status and heartbeat logs, printing only transfer operations and errors. |
+| `--health-check` | Flag | Verify that ADB is functional and list all connected, unauthorized, and offline devices, then exit. Useful for diagnosing connectivity before a capture run. |
 
 ---
 
@@ -165,5 +166,10 @@ When using ADB Capture, keep the following security considerations in mind:
 - **Connection drops or is unstable**:
   - Keep the phone close to your WiFi router.
   - Some corporate WiFi networks block device-to-device communication (AP Isolation). If this is the case, consider hosting a mobile hotspot from your computer or phone, and connect both devices to that hotspot instead.
+- **Not sure if your device is visible to ADB?** Run the health check:
+  ```bash
+  python -m adb_capture.orchestrator --health-check
+  ```
+  It will report whether ADB is working, list any connected devices, and flag unauthorized or offline entries with actionable hints.
 - **ADB command not found**:
   - If the script cannot locate `adb`, download Android SDK Platform-Tools manually from [Google's Developer Website](https://developer.android.com/tools/releases/platform-tools) and add the path to your system environment variables.
