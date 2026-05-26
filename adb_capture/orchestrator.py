@@ -548,6 +548,11 @@ def main():
         action="store_true",
         help="Verify ADB is available and list connected devices, then exit",
     )
+    parser.add_argument(
+        "--clear-cache",
+        action="store_true",
+        help="Clear the cached device IP address(es) and disconnect wireless ADB connections, then exit",
+    )
     args = parser.parse_args()
 
     adb_path = find_adb()
@@ -555,6 +560,19 @@ def main():
 
     if args.health_check:
         sys.exit(health_check(adb_path))
+
+    if args.clear_cache:
+        if os.path.exists(DEVICES_CACHE_FILE):
+            try:
+                os.remove(DEVICES_CACHE_FILE)
+                print(f"[Cache] Cleared IP cache ({DEVICES_CACHE_FILE}).")
+            except Exception as e:
+                print(f"[Cache] Failed to delete cache file: {e}")
+        else:
+            print("[Cache] No cache file found. Nothing to clear.")
+        print("[Cache] Disconnecting active wireless ADB connections...")
+        run_adb_cmd(adb_path, ["disconnect"])
+        sys.exit(0)
 
     # 1. Resolve device IP / Serial
     if args.serial:
