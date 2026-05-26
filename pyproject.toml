@@ -20,7 +20,7 @@ classifiers = [
 dependencies = []
 
 [project.scripts]
-adb-capture = "adb_capture.orchestrator:main"
+adb-capture = "adb_capture.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["adb_capture"]

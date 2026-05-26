@@ -51,9 +51,23 @@ Before running the tool for the first time, configure your Android phone:
 
 ## How to Run
 
-### Option A: Interactive / Guided Setup (Recommended)
+### 1. Wireless Discovery Setup
+To set up wireless capture for the first time, connect your phone to the computer via USB and run the discovery script. This will automatically find your phone's IP address, enable wireless debugging, and save it to the cache:
 
-Just run the wrapper script for your OS. It will check for a cached IP, launch capture, and walk you through USB pairing if it's the first run:
+- **Windows**:
+  ```cmd
+  discover_device.bat
+  ```
+- **macOS / Linux**:
+  ```bash
+  chmod +x discover_device.sh
+  ./discover_device.sh
+  ```
+
+Once this setup completes, you can unplug the USB cable.
+
+### 2. Launching Capture (Interactive / Guided)
+Run the capture script to start the session. If the IP was cached during discovery, it will connect wirelessly over WiFi:
 
 - **Windows**:
   Double-click `start_capture.bat` or run in terminal:
@@ -67,15 +81,15 @@ Just run the wrapper script for your OS. It will check for a cached IP, launch c
   ./start_capture.sh
   ```
 
-### Option B: Advanced CLI Usage (Direct Python Execution)
+### 3. Advanced CLI Usage (Direct Python Execution)
 
 You can run the module directly with specific command-line arguments to customize your capture flow:
 
 ```bash
-python -m adb_capture.orchestrator [FLAGS]
+python -m adb_capture [FLAGS]
 ```
 
-*(Note: If you have installed the package via `pip install .`, you can use the global **`adb-capture`** command instead of `python -m adb_capture.orchestrator`)*
+*(Note: If you have installed the package via `pip install .`, you can use the global **`adb-capture`** command instead of `python -m adb_capture`)*
 
 #### Available Flags
 
@@ -84,6 +98,8 @@ python -m adb_capture.orchestrator [FLAGS]
 | `--serial <SERIAL>` | String | Target a specific device by its ADB serial number (USB or wireless). Skips discovery. |
 | `--ip <IP>` | String | Manually specify the device's IP (e.g., `192.168.1.100`). Skips automatic USB discovery. |
 | `--discover` | Flag | Forces USB discovery to query the device's WiFi IP, configure wireless ADB, and write it to cache. |
+| `--discover-only` | Flag | Forces USB discovery to query the device's WiFi IP, configure wireless ADB, write it to cache, and exit. |
+| `--clear-cache` | Flag | Clears the cached device IP cache and disconnects active wireless connections from the ADB server daemon. |
 | `--poll-interval <SEC>` | Integer | Set how frequently (in seconds) the script checks for new files. Default: `3` seconds. |
 | `--delete-on-device` | Flag | Deletes source images/videos from the device after successfully pulling them to save phone storage. |
 | `--output-dir <PATH>` | String | Save pulled files to a local computer folder. If omitted, files are saved in a timestamped folder nested under `captures/` (e.g. `captures/capture_YYYYMMDD_HHMMSS/`). |
@@ -100,26 +116,26 @@ python -m adb_capture.orchestrator [FLAGS]
 ### Sync Videos Only
 To capture only videos (e.g., MP4 files) and silence periodic heartbeats:
 ```bash
-python -m adb_capture.orchestrator --type video --quiet
+python -m adb_capture --type video --quiet
 ```
 
 ### Dry Run Sync Preview
 To check what files would be copied and deleted from your device without actually transferring them:
 ```bash
-python -m adb_capture.orchestrator --dry-run --delete-on-device
+python -m adb_capture --dry-run --delete-on-device
 ```
 
 ### Auto-Delete Captured Files from Phone
 If you are doing high-volume capturing and don't want to fill your device's internal storage, enable auto-deletion:
 ```bash
-python -m adb_capture.orchestrator --delete-on-device
+python -m adb_capture --delete-on-device
 ```
 
 ### Sync Screenshots Instead of Camera Photos
 You can direct the sync tool to watch your screenshots directory on your phone instead of the default camera folder:
 ```bash
 # Using Python module
-python -m adb_capture.orchestrator --device-dir /sdcard/DCIM/Screenshots
+python -m adb_capture --device-dir /sdcard/DCIM/Screenshots
 
 # Or using the start wrapper scripts
 start_capture.bat --device-dir /sdcard/DCIM/Screenshots
@@ -130,12 +146,12 @@ To capture from multiple devices in parallel, open separate terminal windows and
 
 **Terminal 1 (Device A)**:
 ```bash
-python -m adb_capture.orchestrator --ip 192.168.1.100 --output-dir capture_device_A
+python -m adb_capture --ip 192.168.1.100 --output-dir capture_device_A
 ```
 
 **Terminal 2 (Device B)**:
 ```bash
-python -m adb_capture.orchestrator --serial HT7790200123 --output-dir capture_device_B
+python -m adb_capture --serial HT7790200123 --output-dir capture_device_B
 ```
 
 ---
@@ -168,7 +184,7 @@ When using ADB Capture, keep the following security considerations in mind:
   - Some corporate WiFi networks block device-to-device communication (AP Isolation). If this is the case, consider hosting a mobile hotspot from your computer or phone, and connect both devices to that hotspot instead.
 - **Not sure if your device is visible to ADB?** Run the health check:
   ```bash
-  python -m adb_capture.orchestrator --health-check
+  python -m adb_capture --health-check
   ```
   It will report whether ADB is working, list any connected devices, and flag unauthorized or offline entries with actionable hints.
 - **ADB command not found**:
