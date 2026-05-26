@@ -5,6 +5,7 @@ __pycache__/
 
 # Local device IP cache
 .device_ip
+.adb_capture_devices.json
 
 # Capture session output folders
 captures/

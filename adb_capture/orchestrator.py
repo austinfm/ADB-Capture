@@ -7,7 +7,10 @@ import argparse
 import shutil
 import shlex
 
-DEVICES_CACHE_FILE = os.path.join(os.path.expanduser("~"), ".adb_capture_devices.json")
+DEVICES_CACHE_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    ".adb_capture_devices.json"
+)
 _LEGACY_CACHE_FILE = os.path.join(os.path.expanduser("~"), ".adb_capture_device_ip")
 
 # Global target serial to support multi-device environments
