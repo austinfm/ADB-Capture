@@ -140,22 +140,45 @@ def prompt_device_selection(
     return None
 
 
-def _get_wlan0_ip(adb_path: str) -> str | None:
-    """Returns the wlan0 IP for the currently targeted device."""
-    stdout, _, code = run_adb_cmd(adb_path, ["shell", "ip", "addr", "show", "wlan0"])
+def _get_wlan_ip(adb_path: str) -> str | None:
+    """Returns the WiFi IP for the currently targeted device by checking common interfaces."""
+    interfaces = ["wlan0", "wlan1", "wlan2", "ap0"]
+    for iface in interfaces:
+        stdout, _, code = run_adb_cmd(adb_path, ["shell", "ip", "addr", "show", iface])
+        if code == 0:
+            for line in stdout.splitlines():
+                line = line.strip()
+                if line.startswith("inet ") and not line.startswith("inet6"):
+                    ip = line.split()[1].split("/")[0]
+                    if ip and not ip.startswith("127."):
+                        return ip
+
+    stdout, _, code = run_adb_cmd(adb_path, ["shell", "ip", "addr"])
     if code == 0:
+        current_iface = None
         for line in stdout.splitlines():
             line = line.strip()
-            if line.startswith("inet ") and not line.startswith("inet6"):
-                return line.split()[1].split("/")[0]
+            if not line:
+                continue
+            if line[0].isdigit() or ":" in line:
+                parts = line.split(":")
+                if len(parts) > 1:
+                    current_iface = parts[1].strip().split("@")[0].split()[0]
+            if current_iface and ("wlan" in current_iface or "ap" in current_iface):
+                if line.startswith("inet ") and not line.startswith("inet6"):
+                    ip = line.split()[1].split("/")[0]
+                    if ip and not ip.startswith("127."):
+                        return ip
 
     stdout, _, code = run_adb_cmd(adb_path, ["shell", "ip", "route"])
     if code == 0:
         for line in stdout.splitlines():
-            if "wlan0" in line and "src" in line:
+            if ("wlan" in line or "ap" in line) and "src" in line:
                 parts = line.split("src")
                 if len(parts) > 1:
-                    return parts[1].strip().split()[0]
+                    ip = parts[1].strip().split()[0]
+                    if ip and not ip.startswith("127."):
+                        return ip
     return None
 
 
@@ -213,7 +236,7 @@ def discover_device_ip(adb_path: str) -> str | None:
     discovered: list[dict] = []
     for serial in usb_devices:
         device_serial = serial
-        ip = _get_wlan0_ip(adb_path)
+        ip = _get_wlan_ip(adb_path)
         if ip:
             print(f"[Discovery] Found device {serial} at WiFi IP: {ip}")
             discovered.append({"serial": serial, "ip": ip})
@@ -260,7 +283,7 @@ def resolve_ip(adb_path: str, args) -> str | None:
     if args.ip:
         return args.ip
 
-    if args.discover:
+    if args.discover or args.discover_only:
         ip = discover_device_ip(adb_path)
         if not ip:
             return None
@@ -553,6 +576,11 @@ def main():
         action="store_true",
         help="Clear the cached device IP address(es) and disconnect wireless ADB connections, then exit",
     )
+    parser.add_argument(
+        "--discover-only",
+        action="store_true",
+        help="Force USB discovery: reads WiFi IP from USB-connected device, enables wireless ADB, then exits",
+    )
     args = parser.parse_args()
 
     adb_path = find_adb()
@@ -581,6 +609,10 @@ def main():
         ip = None
     else:
         ip = resolve_ip(adb_path, args)
+
+    if args.discover_only and not ip:
+        print("[Error] Discovery failed: Could not determine device IP. Please ensure your device is connected via USB, has WiFi enabled, and is on the same network.")
+        sys.exit(1)
 
     # 2. Verify connection
     connected = False
@@ -635,6 +667,10 @@ def main():
     if ip:
         save_device_to_cache(ip, device_info)
         print(f"[Orchestrator] Device IP: {ip} (saved to cache)")
+
+    if args.discover_only:
+        print("[Discovery] Wireless setup complete. Device is cached and ready.")
+        sys.exit(0)
 
     # Ensure Camera directory exists on device (quote the path to handle potential spaces)
     run_adb_cmd(adb_path, ["shell", "mkdir", "-p", shlex.quote(args.device_dir)])

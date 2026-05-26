@@ -10,4 +10,4 @@ else
     exit 1
 fi
 
-$PYTHON_CMD -u -m adb_capture.orchestrator --discover "$@"
+$PYTHON_CMD -u -m adb_capture.orchestrator --discover-only "$@"
