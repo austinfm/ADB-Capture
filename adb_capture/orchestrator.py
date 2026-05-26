@@ -632,12 +632,24 @@ def main():
     if args.output_dir:
         output_path = os.path.abspath(args.output_dir)
         os.makedirs(output_path, exist_ok=True)
-        print(f"[Orchestrator] Output directory: {output_path}/")
     else:
         run_id = time.strftime("capture_%Y%m%d_%H%M%S")
         output_path = os.path.abspath(os.path.join("captures", run_id))
         os.makedirs(output_path, exist_ok=True)
-        print(f"[Orchestrator] Session folder: captures/{run_id}/")
+
+    print("[Orchestrator] Active Capture Session Flags:")
+    print(f"  --device-dir:       {args.device_dir}")
+    print(f"  --output-dir:       {output_path}")
+    print(f"  --poll-interval:    {args.poll_interval}s")
+    print(f"  --type:             {args.type}")
+    print(f"  --delete-on-device: {args.delete_on_device}")
+    print(f"  --dry-run:          {args.dry_run}")
+    if args.serial:
+        print(f"  --serial:           {args.serial}")
+    if args.ip:
+        print(f"  --ip:               {args.ip}")
+    if args.discover:
+        print(f"  --discover:         {args.discover}")
 
     processed_frames: set = set()
     pending_files: dict = {}  # remote_file -> last_known_size
