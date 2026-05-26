@@ -9,7 +9,9 @@ from adb_capture import file_utils
 
 def start_capture(adb_path: str, ip: str | None, args) -> None:
     # Ensure Camera directory exists on device (quote the path to handle potential spaces)
-    connection.run_adb_cmd(adb_path, ["shell", "mkdir", "-p", shlex.quote(args.device_dir)])
+    connection.run_adb_cmd(
+        adb_path, ["shell", "mkdir", "-p", shlex.quote(args.device_dir)]
+    )
 
     # 3. Establish temporal marker
     print("[Orchestrator] Creating experiment marker on device...")

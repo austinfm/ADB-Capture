@@ -108,7 +108,9 @@ def main():
         ip = discovery.resolve_ip(adb_path, args)
 
     if args.discover_only and not ip:
-        print("[Error] Discovery failed: Could not determine device IP. Please ensure your device is connected via USB, has WiFi enabled, and is on the same network.")
+        print(
+            "[Error] Discovery failed: Could not determine device IP. Please ensure your device is connected via USB, has WiFi enabled, and is on the same network."
+        )
         sys.exit(1)
 
     # 2. Verify connection
@@ -131,7 +133,9 @@ def main():
             if choice in ("y", "yes"):
                 print("[Discovery] Discovering device IP and switching to wireless...")
                 discovered_ip = discovery.discover_device_ip(adb_path)
-                if discovered_ip and discovery.enable_wireless_adb(adb_path, discovered_ip):
+                if discovered_ip and discovery.enable_wireless_adb(
+                    adb_path, discovered_ip
+                ):
                     discovery.save_device_to_cache(discovered_ip)
                     ip = discovered_ip
                     connected, device_info = connection.verify_connection(adb_path, ip)

@@ -13,25 +13,39 @@ def find_adb() -> str:
     if adb_in_path:
         return adb_in_path
 
-    home = sys.path[0] or ""  # Fallback check
-
     if sys.platform.startswith("win"):
         import os
+
         windows_default = os.path.join(
-            os.path.expanduser("~"), "AppData", "Local", "Android", "Sdk", "platform-tools", "adb.exe"
+            os.path.expanduser("~"),
+            "AppData",
+            "Local",
+            "Android",
+            "Sdk",
+            "platform-tools",
+            "adb.exe",
         )
         if os.path.exists(windows_default):
             return windows_default
     elif sys.platform == "darwin":
         import os
+
         mac_default = os.path.join(
-            os.path.expanduser("~"), "Library", "Android", "sdk", "platform-tools", "adb"
+            os.path.expanduser("~"),
+            "Library",
+            "Android",
+            "sdk",
+            "platform-tools",
+            "adb",
         )
         if os.path.exists(mac_default):
             return mac_default
     else:
         import os
-        linux_default = os.path.join(os.path.expanduser("~"), "Android", "Sdk", "platform-tools", "adb")
+
+        linux_default = os.path.join(
+            os.path.expanduser("~"), "Android", "Sdk", "platform-tools", "adb"
+        )
         if os.path.exists(linux_default):
             return linux_default
 

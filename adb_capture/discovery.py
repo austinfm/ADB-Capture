@@ -6,7 +6,7 @@ from adb_capture.ui import prompt_device_selection
 
 DEVICES_CACHE_FILE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    ".adb_capture_devices.json"
+    ".adb_capture_devices.json",
 )
 _LEGACY_CACHE_FILE = os.path.join(os.path.expanduser("~"), ".adb_capture_device_ip")
 
@@ -60,7 +60,9 @@ def _get_wlan_ip(adb_path: str) -> str | None:
     """Returns the WiFi IP for the currently targeted device by checking common interfaces."""
     interfaces = ["wlan0", "wlan1", "wlan2", "ap0"]
     for iface in interfaces:
-        stdout, _, code = connection.run_adb_cmd(adb_path, ["shell", "ip", "addr", "show", iface])
+        stdout, _, code = connection.run_adb_cmd(
+            adb_path, ["shell", "ip", "addr", "show", iface]
+        )
         if code == 0:
             for line in stdout.splitlines():
                 line = line.strip()
