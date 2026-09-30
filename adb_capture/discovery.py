@@ -78,9 +78,9 @@ def _get_wlan_ip(adb_path: str) -> str | None:
             line = line.strip()
             if not line:
                 continue
-            if line[0].isdigit() or ":" in line:
+            if line[0].isdigit() and ":" in line:
                 parts = line.split(":")
-                if len(parts) > 1:
+                if len(parts) > 1 and parts[1].strip().split("@")[0].split():
                     current_iface = parts[1].strip().split("@")[0].split()[0]
             if current_iface and ("wlan" in current_iface or "ap" in current_iface):
                 if line.startswith("inet ") and not line.startswith("inet6"):

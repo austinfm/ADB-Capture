@@ -16,17 +16,21 @@ def find_adb() -> str:
     if sys.platform.startswith("win"):
         import os
 
-        windows_default = os.path.join(
-            os.path.expanduser("~"),
-            "AppData",
-            "Local",
-            "Android",
-            "Sdk",
-            "platform-tools",
-            "adb.exe",
-        )
-        if os.path.exists(windows_default):
-            return windows_default
+        windows_candidates = [
+            os.path.join(
+                os.path.expanduser("~"),
+                "AppData",
+                "Local",
+                "Android",
+                "Sdk",
+                "platform-tools",
+                "adb.exe",
+            ),
+            os.path.join(os.path.expanduser("~"), "android_sdk", "platform-tools", "adb.exe"),
+        ]
+        for candidate in windows_candidates:
+            if os.path.exists(candidate):
+                return candidate
     elif sys.platform == "darwin":
         import os
 
