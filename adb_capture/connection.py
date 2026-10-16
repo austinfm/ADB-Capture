@@ -27,6 +27,18 @@ def find_adb() -> str:
                 "adb.exe",
             ),
             os.path.join(os.path.expanduser("~"), "android_sdk", "platform-tools", "adb.exe"),
+            # winget install Google.PlatformTools (PATH only updates in new shells)
+            os.path.join(
+                os.path.expanduser("~"),
+                "AppData",
+                "Local",
+                "Microsoft",
+                "WinGet",
+                "Packages",
+                "Google.PlatformTools_Microsoft.Winget.Source_8wekyb3d8bbwe",
+                "platform-tools",
+                "adb.exe",
+            ),
         ]
         for candidate in windows_candidates:
             if os.path.exists(candidate):

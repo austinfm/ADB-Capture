@@ -115,6 +115,12 @@ def discover_device_ip(adb_path: str) -> str | None:
         if "\tdevice" in line and ":" not in line.split()[0]
     ]
     if code != 0 or not usb_devices:
+        if any("\tunauthorized" in line for line in lines):
+            print(
+                "[Discovery] Device found but unauthorized. Unlock the phone and accept the "
+                "'Allow USB debugging?' prompt, then run again."
+            )
+            return None
         print(
             "[Discovery] No USB device found. Connect the device via USB with USB debugging enabled."
         )

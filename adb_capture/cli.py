@@ -83,6 +83,14 @@ def main():
 
     adb_path = connection.find_adb()
     print(f"[Orchestrator] Using ADB: {adb_path}")
+    _, adb_err, adb_code = connection.run_adb_cmd(adb_path, ["version"])
+    if adb_code != 0:
+        print(f"[Error] ADB is not working: {adb_err.strip() or 'unknown error'}")
+        print(
+            "[Error] Install Android platform-tools (e.g. 'winget install Google.PlatformTools') "
+            "and make sure adb is on PATH."
+        )
+        sys.exit(1)
 
     if args.health_check:
         sys.exit(connection.health_check(adb_path))

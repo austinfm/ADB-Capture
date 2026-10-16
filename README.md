@@ -23,12 +23,15 @@ Perfect for mobile testing, UX design workflows, collection of training data, or
 2. **Android SDK Platform-Tools (ADB)**:
    This utility requires the Android Debug Bridge (`adb`) command-line tool.
    - **Check if you have it**: Open a terminal and run `adb version`. If it works, you are good to go.
-   - **How to Install**:
+   - **Quick Install**: Run the included installer script, which uses your platform's package manager (winget on Windows, Homebrew on macOS, apt/dnf/pacman on Linux):
+     - **Windows**: Double-click `install_adb.bat`
+     - **macOS / Linux**: `./install_adb.sh`
+   - **Manual Install**:
      - **macOS**: Install via Homebrew: `brew install android-platform-tools`
      - **Linux (Debian/Ubuntu)**: Install via apt: `sudo apt update && sudo apt install -y adb`
      - **Windows**: Install via Chocolatey `choco install adb` or download the official [SDK Platform-Tools for Windows Zip](https://developer.android.com/tools/releases/platform-tools), extract it, and add the directory containing `adb.exe` to your system environment variables `PATH`.
    - **Auto-Discovery fallback**: If not in your system `PATH`, this tool automatically searches for default SDK paths:
-     - **Windows**: `%USERPROFILE%\AppData\Local\Android\Sdk\platform-tools\adb.exe`
+     - **Windows**: `%USERPROFILE%\AppData\Local\Android\Sdk\platform-tools\adb.exe` and the winget install location
      - **macOS**: `~/Library/Android/sdk/platform-tools/adb`
      - **Linux**: `~/Android/Sdk/platform-tools/adb`
 
